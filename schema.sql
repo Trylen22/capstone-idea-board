@@ -1,3 +1,4 @@
+begin;
 -- Run once, then enable Authentication > Anonymous Sign-Ins.
 create table public.profiles (id uuid primary key references auth.users(id) on delete cascade, name text not null check(char_length(trim(name)) between 2 and 60));
 create table public.ideas (id uuid primary key default gen_random_uuid(), user_id uuid not null references public.profiles(id), author_name text not null, title text not null check(char_length(trim(title)) between 1 and 100), body text not null check(char_length(trim(body)) between 1 and 4000), created_at timestamptz not null default now());
@@ -23,3 +24,5 @@ create policy "Post own ideas" on public.ideas for insert to authenticated with 
 create policy "Post own comments" on public.comments for insert to authenticated with check(user_id=(select auth.uid()) and author_name=(select name from public.profiles where id=(select auth.uid())));
 create policy "Vote as self" on public.votes for insert to authenticated with check(user_id=(select auth.uid()));
 create policy "Remove own vote" on public.votes for delete to authenticated using(user_id=(select auth.uid()));
+
+commit;
