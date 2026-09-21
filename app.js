@@ -10,13 +10,35 @@ function needName(){if(profile)return true;$('#login').showModal();return false;
 function showIdentity(){$('#identity').textContent=profile?`${profile.name} · change`:'Enter your name ↗';}
 async function refresh(){if(live){const r=await Promise.all([db.from('ideas').select('*'),db.from('votes').select('*'),db.from('comments').select('*').order('created_at')]);[ideas,votes,comments]=r.map(check);}render();}
 async function insert(table,record){if(live)check(await db.from(table).insert(record));else{({ideas,votes,comments})[table].push({...record,id:crypto.randomUUID(),created_at:new Date().toISOString()});save();}}
-function render(){const feed=$('#feed');feed.replaceChildren();$('#total').textContent=ideas.length;const count=id=>votes.filter(v=>v.idea_id===id).length;
+function render(){const feed=$('#feed');feed.replaceChildren();$('#total').textContent=ideas.length;const count=id=>votes.filter(v=>v.idea_id===id).reduce((sum,v)=>sum+(v.value??1),0);
 const sorted=[...ideas].sort((a,b)=>($('#sort').value==='top'?count(b.id)-count(a.id):0)||Date.parse(b.created_at)-Date.parse(a.created_at));
 if(!sorted.length){const empty=node('div','empty');empty.append(node('div','ornament','✳'),node('h2','','Every project starts somewhere.'),node('p','','Share the first idea. Your group can vote, ask questions, and help it take shape.'));feed.append(empty);}
 for(const idea of sorted){const card=node('article','idea'),meta=node('div','meta'),time=node('time','',new Date(idea.created_at).toLocaleDateString(undefined,{month:'short',day:'numeric'}));time.dateTime=idea.created_at;meta.append(node('span','avatar',idea.author_name.trim().split(/\s+/).map(x=>x[0]).slice(0,2).join('').toUpperCase()),node('span','',idea.author_name),time);card.append(meta,node('h3','',idea.title),node('div','idea-body',idea.body));
-const related=comments.filter(c=>c.idea_id===idea.id),actions=node('div','actions'),voted=votes.some(v=>v.idea_id===idea.id&&v.user_id===user?.id),vote=node('button','vote',`↑ ${count(idea.id)} ${count(idea.id)===1?'vote':'votes'}`);vote.setAttribute('aria-pressed',String(voted));vote.setAttribute('aria-label',`${voted?'Remove vote from':'Vote for'} ${idea.title}`);
-vote.onclick=()=>{if(!needName())return;busy(vote,async()=>{if(voted){if(live)check(await db.from('votes').delete().eq('idea_id',idea.id).eq('user_id',user.id));else{votes=votes.filter(v=>!(v.idea_id===idea.id&&v.user_id===user.id));save();}}else await insert('votes',{idea_id:idea.id,user_id:user.id});await refresh();});};
-const toggle=node('button','comment-toggle',`${related.length} ${related.length===1?'comment':'comments'} ↗`);toggle.setAttribute('aria-expanded',String(opened.has(idea.id)));toggle.onclick=()=>{opened.has(idea.id)?opened.delete(idea.id):opened.add(idea.id);render();};actions.append(vote,toggle);card.append(actions);
+const related=comments.filter(c=>c.idea_id===idea.id),actions=node('div','actions');
+const currentVote=votes.find(v=>v.idea_id===idea.id&&v.user_id===user?.id);
+const direction=currentVote?(currentVote.value??1):0;
+const score=node('span','vote-score',String(count(idea.id)));score.setAttribute('aria-label',`Score: ${count(idea.id)}`);
+const buttons=[1,-1].map(value=>{
+ const label=value===1?'Upvote':'Downvote';
+ const button=node('button',`vote ${value===-1?'downvote':''}`,value===1?'↑':'↓');
+ button.setAttribute('aria-pressed',String(direction===value));
+ button.setAttribute('aria-label',`${direction===value?'Remove '+label.toLowerCase()+' from':label} ${idea.title}`);
+ button.title=label;
+ button.onclick=()=>{if(!needName())return;buttons.forEach(b=>b.disabled=true);busy(button,async()=>{
+  try {
+   if(direction===value){
+    if(live)check(await db.from('votes').delete().eq('idea_id',idea.id).eq('user_id',user.id));
+    else votes=votes.filter(v=>!(v.idea_id===idea.id&&v.user_id===user.id));
+   }else{
+    const record={idea_id:idea.id,user_id:user.id,value};
+    if(live)check(await db.from('votes').upsert(record,{onConflict:'idea_id,user_id'}));
+    else{votes=votes.filter(v=>!(v.idea_id===idea.id&&v.user_id===user.id));votes.push(record);}
+   }
+   if(!live)save();await refresh();
+  } finally {buttons.forEach(b=>b.disabled=false);}
+ });};return button;
+});
+const toggle=node('button','comment-toggle',`${related.length} ${related.length===1?'comment':'comments'} ↗`);toggle.setAttribute('aria-expanded',String(opened.has(idea.id)));toggle.onclick=()=>{opened.has(idea.id)?opened.delete(idea.id):opened.add(idea.id);render();};actions.append(buttons[0],score,buttons[1],toggle);card.append(actions);
 if(opened.has(idea.id)){const thread=node('div','comments');for(const c of related){const item=node('div','comment');item.append(node('span','small',c.author_name),node('p','',c.body));thread.append(item);}const form=node('form','comment-form'),label=node('label','','Add to the conversation'),input=node('textarea'),submit=node('button','primary','Post comment →');input.id='comment-'+idea.id;label.htmlFor=input.id;input.rows=2;input.required=true;input.maxLength=2000;input.placeholder='Ask a question or build on the idea…';submit.type='submit';form.append(label,input,submit);input.oninput=()=>input.setCustomValidity('');form.onsubmit=e=>{e.preventDefault();if(!needName())return;const body=input.value.trim();if(!body){input.setCustomValidity('Write a comment first.');input.reportValidity();return;}busy(submit,async()=>{await insert('comments',{idea_id:idea.id,user_id:user.id,author_name:profile.name,body});await refresh();toast('Comment added.');});};thread.append(form);card.append(thread);}feed.append(card);}}
 $('#identity').onclick=()=>{$('#name').value=profile?.name||'';$('#login').showModal();};$('#cancel-login').onclick=()=>$('#login').close();$('#name').oninput=()=>$('#name').setCustomValidity('');
 $('#name-form').onsubmit=e=>{e.preventDefault();const name=$('#name').value.trim();if(name.length<2){$('#name').setCustomValidity('Enter at least two characters.');$('#name').reportValidity();return;}busy(e.submitter,async()=>{if(live){if(!user){user=check(await db.auth.signInAnonymously()).user;}check(await db.from('profiles').upsert({id:user.id,name}));}else{identity.name=name;save();}profile={name};showIdentity();$('#login').close();await refresh();toast(`Welcome, ${name}.`);});};

@@ -23,3 +23,7 @@ Publish only this directory in a dedicated GitHub repository, with Pages configu
 ## Checks
 
 `node --check app.js` checks syntax. Browser checks should cover required name, posting, vote/unvote, comments, sorting, reload persistence, safe text rendering, and mobile overflow. Shared database integration requires a configured Supabase project and running the schema.
+
+## Adding downvotes to an existing board
+
+Run `migrations/002-downvotes.sql` once before deploying the updated frontend. Existing votes become +1. Each browser can choose +1 or -1 per idea, click again to remove its vote, or switch direction. The displayed score is upvotes minus downvotes; Highest score sorts by that total.
