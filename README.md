@@ -1,10 +1,24 @@
 # Common Ground — capstone idea board
 
-Dark, responsive Times New Roman message board. Enter a name, share an idea, toggle a vote, and comment. No password or member accounts to manage.
+A small discussion board for developing capstone proposals. Participants enter a name, post an idea, vote, and add comments. It runs as a static site with optional Supabase storage.
+
+[![Post, vote, and comment in a local board preview](docs/demo/preview.webp)](https://trylen22.github.io/demos/ideas/)
+
+[Watch the captioned demonstration](https://trylen22.github.io/demos/ideas/). The page also provides the MP4 and subtitle file.
+
+The recording uses synthetic posts and browser storage. It does not write to the shared class board.
+
+[Open the board](https://trylen22.github.io/capstone-idea-board/).
 
 ## Preview
 
-Run `python3 -m http.server 8765` here, then open http://localhost:8765. With empty config, this is explicitly a local preview: records only persist in this browser.
+For a local-only preview, use a separate checkout and set both values in `config.js` to empty strings before opening the page. A configured checkout connects to shared storage.
+
+```bash
+python3 -m http.server 8000 --bind 127.0.0.1
+```
+
+Open `http://127.0.0.1:8000/`. With empty configuration, posts, votes, and comments persist only in that browser. No build step is required.
 
 ## Connect shared storage
 
